@@ -56,7 +56,7 @@ mqttClient.on('connect', function (connack) {
 
 let runWMP2Mqtt = function (mqttClient, wmpclient) {
     if (offmode_enabled) {
-        deviceState[wmpclient.mac] = { onoff: null, mode: null };
+        deviceState[wmpclient.mac] = { onoff: null, mode: null, pendingMode: null };
     }
 
     wmpclient.on('update', function (data) {
@@ -72,8 +72,15 @@ let runWMP2Mqtt = function (mqttClient, wmpclient) {
                 mqttClient.publish(statBase + 'onoff', value, {retain:retain_flag});
                 if (value === 'off') {
                     mqttClient.publish(statBase + 'mode', 'off', {retain:retain_flag});
-                } else if (state.mode !== null) {
-                    mqttClient.publish(statBase + 'mode', state.mode, {retain:retain_flag});
+                } else {
+                    if (state.pendingMode !== null) {
+                        wmpclient.set('MODE', state.pendingMode);
+                        state.mode = state.pendingMode;
+                        state.pendingMode = null;
+                    }
+                    if (state.mode !== null) {
+                        mqttClient.publish(statBase + 'mode', state.mode, {retain:retain_flag});
+                    }
                 }
             } else if (feature === 'mode') {
                 state.mode = value;
@@ -148,7 +155,14 @@ var runMqtt2WMP = function (mqttClient, wmpclientMap) {
                     if (cmd.value.toString().toLowerCase() === 'off') {
                         wmpclient.set('ONOFF', 'OFF');
                     } else {
-                        wmpclient.set('ONOFF', 'ON').then(() => wmpclient.set('MODE', cmd.value.toString()));
+                        const state = deviceState[cmd.mac];
+                        const modeValue = cmd.value.toString();
+                        if (state && state.onoff === 'on') {
+                            wmpclient.set('MODE', modeValue);
+                        } else {
+                            if (state) state.pendingMode = modeValue;
+                            wmpclient.set('ONOFF', 'ON');
+                        }
                     }
                 } else {
                     wmpclient.set(cmd.feature, cmd.value);
