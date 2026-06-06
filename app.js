@@ -148,8 +148,7 @@ var runMqtt2WMP = function (mqttClient, wmpclientMap) {
                     if (cmd.value.toString().toLowerCase() === 'off') {
                         wmpclient.set('ONOFF', 'OFF');
                     } else {
-                        wmpclient.set('ONOFF', 'ON');
-                        wmpclient.set('MODE', cmd.value.toString());
+                        wmpclient.set('ONOFF', 'ON').then(() => wmpclient.set('MODE', cmd.value.toString()));
                     }
                 } else {
                     wmpclient.set(cmd.feature, cmd.value);

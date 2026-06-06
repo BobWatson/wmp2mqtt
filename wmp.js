@@ -153,7 +153,7 @@ module.exports = {
             if (feature.toUpperCase() == "SETPTEMP")
                 value = value * 10;
 
-            sendCmd("SET,1:" + feature + "," + value).then(function (data) {
+            return sendCmd("SET,1:" + feature + "," + value).then(function (data) {
                 if (data.type != "ACK")
                     console.error("Received non-ack message from set command: " + JSON.stringify(data))
             });
