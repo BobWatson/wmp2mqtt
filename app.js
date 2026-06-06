@@ -104,9 +104,9 @@ let runWMP2Mqtt = function (mqttClient, wmpclient) {
         }
       } else if (feature === "mode") {
         state.mode = value;
-        // Only publish when unit is confirmed on; suppress stale hardware echoes while off or before first ONOFF update
-        if (state.onoff === "on") {
-          mqttClient.publish(statBase + "mode", value, {
+        if (state.onoff !== null) {
+          const effectiveMode = state.onoff === "off" ? "off" : state.mode;
+          mqttClient.publish(statBase + "mode", effectiveMode, {
             retain: retain_flag,
           });
         }
