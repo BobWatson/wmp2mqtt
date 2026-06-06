@@ -79,10 +79,9 @@ let runWMP2Mqtt = function (mqttClient, wmpclient) {
         state.onoff = value;
         mqttClient.publish(statBase + "onoff", value, { retain: retain_flag });
         if (value === "off") {
-          mqttClient.publish(statBase + "mode", "off", {
-            retain: retain_flag,
-          });
+          wmpclient.get("MODE");
         } else {
+          wmpclient.get("MODE");
           if (state.pendingMode !== null) {
             const modeToSet = state.pendingMode.toUpperCase();
             state.mode = state.pendingMode;
@@ -224,9 +223,9 @@ var runMqtt2WMP = function (mqttClient, wmpclientMap) {
         logger.info("keepalive: keeping alive MAC " + mac);
         let wmpclient = wmpclientMap[mac];
         wmpclient.id().then(function (data) {
-          wmpclient.get('ONOFF');
-          wmpclient.get('MODE');
-          wmpclient.get('AMBTEMP');
+          wmpclient.get("ONOFF");
+          wmpclient.get("MODE");
+          wmpclient.get("AMBTEMP");
         });
       });
     } catch (err) {
