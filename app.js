@@ -224,7 +224,9 @@ var runMqtt2WMP = function (mqttClient, wmpclientMap) {
         logger.info("keepalive: keeping alive MAC " + mac);
         let wmpclient = wmpclientMap[mac];
         wmpclient.id().then(function (data) {
-          //todo: something useful with keepalive?
+          wmpclient.get('ONOFF');
+          wmpclient.get('MODE');
+          wmpclient.get('AMBTEMP');
         });
       });
     } catch (err) {
