@@ -5,8 +5,9 @@ const MQTT_STATE_TOPIC = "/stat" + MQTT_TOPIC
 const MQTT_COMMAND_TOPIC = "/cmnd" + MQTT_TOPIC
 
 const argv = require('yargs')
-    .usage('Usage: $0 [--discover] --mqtt [mqtt url] [--mqttuser user --mqttpass pass] [--wmp ip address(,ip address,...)] [--retain [true/false]]')
+    .usage('Usage: $0 [--discover] --mqtt [mqtt url] [--mqttuser user --mqttpass pass] [--wmp ip address(,ip address,...)] [--retain [true/false]] [--offmode]')
     .demandOption(['mqtt'])
+    .option('offmode', { describe: 'Fold ONOFF into MODE topic for HA compatibility (default: false)', type: 'boolean', default: false })
     .argv;
 
 let supplied_intesis_ips = [];
@@ -16,6 +17,7 @@ if (argv.wmp) {
 }
 
 let retain_flag = (argv.retain === "true") ? true:false;
+const offmode_enabled = !!(argv.offmode || process.env.OFFMODE === 'true');
 
 const mqtt_url = argv.mqtt;
 
@@ -53,9 +55,38 @@ mqttClient.on('connect', function (connack) {
 });
 
 let runWMP2Mqtt = function (mqttClient, wmpclient) {
+    if (offmode_enabled) {
+        deviceState[wmpclient.mac] = { onoff: null, mode: null };
+    }
+
     wmpclient.on('update', function (data) {
         logger.debug('Sending to MQTT: ' + JSON.stringify(data));
-        mqttClient.publish(MQTT_STATE_TOPIC + "/" + wmpclient.mac + "/settings/" + data.feature.toLowerCase(), data.value.toString().toLowerCase(), {retain:retain_flag})
+        const feature = data.feature.toLowerCase();
+        const value = data.value.toString().toLowerCase();
+        const statBase = MQTT_STATE_TOPIC + "/" + wmpclient.mac + "/settings/";
+
+        if (offmode_enabled) {
+            const state = deviceState[wmpclient.mac];
+            if (feature === 'onoff') {
+                state.onoff = value;
+                mqttClient.publish(statBase + 'onoff', value, {retain:retain_flag});
+                if (value === 'off') {
+                    mqttClient.publish(statBase + 'mode', 'off', {retain:retain_flag});
+                } else if (state.mode !== null) {
+                    mqttClient.publish(statBase + 'mode', state.mode, {retain:retain_flag});
+                }
+            } else if (feature === 'mode') {
+                state.mode = value;
+                // Only publish when unit is confirmed on; suppress stale hardware echoes while off or before first ONOFF update
+                if (state.onoff === 'on') {
+                    mqttClient.publish(statBase + 'mode', value, {retain:retain_flag});
+                }
+            } else {
+                mqttClient.publish(statBase + feature, value, {retain:retain_flag});
+            }
+        } else {
+            mqttClient.publish(statBase + feature, value, {retain:retain_flag});
+        }
     });
 }
 
@@ -113,7 +144,16 @@ var runMqtt2WMP = function (mqttClient, wmpclientMap) {
                 wmpclient.get(cmd.feature);
                 break;
             case "SET":
-                wmpclient.set(cmd.feature, cmd.value);
+                if (offmode_enabled && cmd.feature.toLowerCase() === 'mode') {
+                    if (cmd.value.toString().toLowerCase() === 'off') {
+                        wmpclient.set('ONOFF', 'OFF');
+                    } else {
+                        wmpclient.set('MODE', cmd.value.toString());
+                        wmpclient.set('ONOFF', 'ON');
+                    }
+                } else {
+                    wmpclient.set(cmd.feature, cmd.value);
+                }
                 break;
         }
     })
@@ -137,6 +177,7 @@ var runMqtt2WMP = function (mqttClient, wmpclientMap) {
 }
 
 var macToClient = {};
+let deviceState = {}; // { [mac]: { onoff: null, mode: null } } — used by offmode feature
 
 let wmpConnect = function (ip) {
     //todo: prevent duplicate registrations

@@ -12,21 +12,26 @@ npm install
 ```
 
 # Usage
-`node app.js [--discover] --mqtt [mqtt url] [--wmp ip address(,ip address,...)] [--retain [true/false]]`
+`node app.js [--discover] --mqtt [mqtt url] [--mqttuser user --mqttpass pass] [--wmp ip address(,ip address,...)] [--retain [true/false]] [--offmode]`
 
 Discovery will use IPv4 broadcast to try to detect and connect to all WMP devices on the subnet.
 
 Updates will be provided in the MQTT topic: `/stat/hvac/intesis/[Intesis MAC Address]/settings/[feature]` with the payload as the value.
-For example: `/stat/hvac/intesis/00000000/settings/ONOFF` with payload as `OFF`
+For example: `/stat/hvac/intesis/00000000/settings/onoff` with payload as `off`
 
 Commands can be sent via the topic: `/cmnd/hvac/intesis/[Intesis MAC Address]/settings/[feature]` with the payload as the value to set to.
-For example: `/cmnd/hvac/intesis/00000000/settings/MODE` with payload as `HEAT`
+For example: `/cmnd/hvac/intesis/00000000/settings/mode` with payload as `heat`
 
-Note that sending a command with no payload will request the current state is sent as au update.
+Note that sending a command with no payload will request the current state is sent as an update.
 
 ### Retain Flag
 1. `false` default value. 
-1. `true` When a client subscribes to that topic, if there is a retained message in the buffer, then it is immediately sent to the subscribing client, with its RETAIN flag set, so the client knows it is not a “live” value (i.e. just published), but that it is potentially “stale” or out of date. Nonetheless, it is the last-published value, and thus represents the most up-to-date value of the data on that topic.
+1. `true` When a client subscribes to that topic, if there is a retained message in the buffer, then it is immediately sent to the subscribing client, with its RETAIN flag set, so the client knows it is not a "live" value (i.e. just published), but that it is potentially "stale" or out of date. Nonetheless, it is the last-published value, and thus represents the most up-to-date value of the data on that topic.
+
+### Off-mode flag (Home Assistant compatibility)
+
+1. `true` Home Assistant compatibility. Adds OFF as a mode and suppresses HEAT/COOL/etc.
+2. `false` Does not publish ON/OFF as a distinct mode.
 
 # Notes
 
