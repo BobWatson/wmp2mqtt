@@ -109,7 +109,7 @@ module.exports = {
             for (let i = 0; i < wmpdata.length; i++) {
                 if (wmpdata[i].type != "CHN") {
                     if (nextCallback === null) {
-                        console.error("Received message without callback: " + wmpdata[i])
+                        console.error("Received message without callback: " + JSON.stringify(wmpdata[i]))
                     } else {
                         nextCallback(wmpdata[i]);
                         nextCallback = null;
