@@ -84,15 +84,17 @@ let runWMP2Mqtt = function (mqttClient, wmpclient) {
           });
         } else {
           if (state.pendingMode !== null) {
+            const modeToSet = state.pendingMode.toUpperCase();
+            state.mode = state.pendingMode;
+            state.pendingMode = null;
             logger.debug(
               "offmode: ONOFF=ON confirmed for " +
                 wmpclient.mac +
-                ", sending MODE=" +
-                state.pendingMode,
+                ", scheduling MODE=" +
+                modeToSet +
+                " after settle delay",
             );
-            wmpclient.set("MODE", state.pendingMode.toUpperCase());
-            state.mode = state.pendingMode;
-            state.pendingMode = null;
+            setTimeout(() => wmpclient.set("MODE", modeToSet), 1000);
           }
           if (state.mode !== null) {
             mqttClient.publish(statBase + "mode", state.mode, {
