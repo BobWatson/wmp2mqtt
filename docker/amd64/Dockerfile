@@ -7,6 +7,7 @@ ENV MQTT_PASS=""
 ENV WMP_IPS=""
 ENV DISCOVER="false"
 ENV RETAIN="false"
+ENV OFFMODE="false"
 
 WORKDIR /app
 
