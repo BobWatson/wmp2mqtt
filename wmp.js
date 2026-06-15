@@ -102,6 +102,10 @@ module.exports = {
         let client = new net.Socket();
         let mac;
 
+        client.on('error', function (err) {
+            debug('socket error: ' + err.message);
+        });
+
         client.on('data', function (data) {
 
             let wmpdata = parseResponseLines(data.toString())
