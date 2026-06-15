@@ -103,7 +103,8 @@ module.exports = {
         let mac;
 
         client.on('error', function (err) {
-            debug('socket error: ' + err.message);
+            console.error('WMP socket error (' + ip + '): ' + err.message);
+            client.destroy();
         });
 
         client.on('data', function (data) {
@@ -170,12 +171,6 @@ module.exports = {
             })
         };
 
-        //reconnect on close
-        client.on('close', function (e) {
-            client.setTimeout(5000, function () {
-                client.connect(3310, ip);
-            })
-        });
 
         return new Promise(function (resolve, reject) {
             client.connect(3310, ip, function () {
