@@ -63,12 +63,11 @@ let runWMP2Mqtt = function (mqttClient, wmpclient) {
     deviceState[wmpclient.mac] = {
       onoff: null,
       mode: null,
-      pendingMode: null,
     };
   }
 
   wmpclient.on("update", function (data) {
-    logger.debug("Sending to MQTT: " + JSON.stringify(data));
+    logger.debug("Sending to MQTT (" + wmpclient.mac + "): " + JSON.stringify(data));
     const feature = data.feature.toLowerCase();
     const value = data.value.toString().toLowerCase();
     const statBase = MQTT_STATE_TOPIC + "/" + wmpclient.mac + "/settings/";
@@ -82,19 +81,6 @@ let runWMP2Mqtt = function (mqttClient, wmpclient) {
           wmpclient.get("MODE");
         } else {
           wmpclient.get("MODE");
-          if (state.pendingMode !== null) {
-            const modeToSet = state.pendingMode.toUpperCase();
-            state.mode = state.pendingMode;
-            state.pendingMode = null;
-            logger.debug(
-              "offmode: ONOFF=ON confirmed for " +
-                wmpclient.mac +
-                ", scheduling MODE=" +
-                modeToSet +
-                " after settle delay",
-            );
-            setTimeout(() => wmpclient.set("MODE", modeToSet), 1000);
-          }
           if (state.mode !== null) {
             mqttClient.publish(statBase + "mode", state.mode, {
               retain: retain_flag,
@@ -185,29 +171,8 @@ var runMqtt2WMP = function (mqttClient, wmpclientMap) {
           if (cmd.value.toString().toLowerCase() === "off") {
             wmpclient.set("ONOFF", "OFF");
           } else {
-            const state = deviceState[cmd.mac];
-            const modeValue = cmd.value.toString();
-            if (state && state.onoff === "on") {
-              logger.debug(
-                "offmode: unit already on, sending MODE=" +
-                  modeValue +
-                  " to " +
-                  cmd.mac,
-              );
-              wmpclient.set("MODE", modeValue);
-            } else {
-              logger.debug(
-                "offmode: unit off/unknown (onoff=" +
-                  (state && state.onoff) +
-                  "), queuing pendingMode=" +
-                  modeValue +
-                  " for " +
-                  cmd.mac +
-                  ", sending ONOFF=ON",
-              );
-              if (state) state.pendingMode = modeValue;
-              wmpclient.set("ONOFF", "ON");
-            }
+            wmpclient.set("ONOFF", "ON");
+            wmpclient.set("MODE", cmd.value.toString());
           }
         } else {
           wmpclient.set(cmd.feature, cmd.value);
@@ -244,15 +209,19 @@ let wmpConnect = function (ip) {
     logger.info("Connected to WMP at IP " + ip + " with MAC " + wmpclient.mac);
 
     wmpclient.on("close", function () {
-      logger.warn(
-        "WMP Connection closed! Closing MQTT connection and exiting...",
-      );
-      mqttClient.end(false, {}, () => process.exit(-1));
+      logger.warn("WMP Connection closed! Reconnecting in 5 seconds...");
+      if (wmpclient.mac) {
+        delete macToClient[wmpclient.mac];
+      }
+      setTimeout(() => wmpConnect(ip), 5000);
     });
 
     macToClient[wmpclient.mac] = wmpclient;
 
     runWMP2Mqtt(mqttClient, wmpclient);
+  }).catch(function (err) {
+    logger.warn("WMP connection failed: " + err + ". Retrying in 5 seconds...");
+    setTimeout(() => wmpConnect(ip), 5000);
   });
 };
 
