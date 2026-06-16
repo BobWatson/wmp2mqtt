@@ -176,6 +176,10 @@ module.exports = {
             })
         };
 
+        let destroy = function () {
+            client.destroy();
+        };
+
 
         return new Promise(function (resolve, reject) {
             connectReject = reject;
@@ -189,6 +193,7 @@ module.exports = {
                         info: info,
                         get: get,
                         set: set,
+                        destroy: destroy,
                         mac: mac
                     });
                 })

@@ -187,7 +187,19 @@ var runMqtt2WMP = function (mqttClient, wmpclientMap) {
       wmpclients.forEach(function (mac) {
         logger.info("keepalive: keeping alive MAC " + mac);
         let wmpclient = wmpclientMap[mac];
+
+        let timedOut = false;
+        let timeoutHandle = setTimeout(function () {
+          timedOut = true;
+          logger.warn(
+            "keepalive: no response from MAC " + mac + " within 5s, killing connection",
+          );
+          wmpclient.destroy();
+        }, 5000);
+
         wmpclient.id().then(function (data) {
+          if (timedOut) return;
+          clearTimeout(timeoutHandle);
           wmpclient.get("ONOFF");
           wmpclient.get("MODE");
           wmpclient.get("AMBTEMP");
