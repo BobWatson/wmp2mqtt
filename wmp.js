@@ -103,6 +103,11 @@ module.exports = {
         let mac;
         let connectReject = null;
 
+        client.setTimeout(10000);
+        client.on('timeout', function () {
+            client.destroy(new Error('Connection timeout'));
+        });
+
         client.on('error', function (err) {
             console.error('WMP socket error (' + ip + '): ' + err.message);
             client.destroy();
@@ -185,6 +190,7 @@ module.exports = {
             connectReject = reject;
             client.connect(3310, ip, function () {
                 id().then(function (data) {
+                    client.setTimeout(0);
                     connectReject = null;
                     mac = data.mac;
                     resolve({
