@@ -195,7 +195,7 @@ var runMqtt2WMP = function (mqttClient, wmpclientMap) {
             "keepalive: no response from MAC " + mac + " within 5s, killing connection",
           );
           wmpclient.destroy();
-        }, 5000);
+        }, 15000);
 
         wmpclient.id().then(function (data) {
           if (timedOut) return;
@@ -221,11 +221,11 @@ let wmpConnect = function (ip) {
     logger.info("Connected to WMP at IP " + ip + " with MAC " + wmpclient.mac);
 
     wmpclient.on("close", function () {
-      logger.warn("WMP Connection closed! Reconnecting in 5 seconds...");
+      logger.warn("WMP Connection closed! Reconnecting...");
       if (wmpclient.mac) {
         delete macToClient[wmpclient.mac];
       }
-      setTimeout(() => wmpConnect(ip), 5000);
+      wmpConnect(ip);
     });
 
     macToClient[wmpclient.mac] = wmpclient;
