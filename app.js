@@ -132,6 +132,44 @@ let parseCommand = function (topic, payload) {
   return rv;
 };
 
+let commandQueue = {}; // { [mac]: [cmd, ...] } — commands queued while device is offline
+
+let executeCommand = function (wmpclient, cmd) {
+  switch (cmd.command) {
+    case "ID":
+      wmpclient.id().then(function (data) {
+        logger.debug("published to mqtt: %", JSON.stringify(data));
+        mqttClient.publish(MQTT_STATE_TOPIC, JSON.stringify(data), {
+          retain: retain_flag,
+        });
+      });
+      break;
+    case "INFO":
+      wmpclient.info().then(function (data) {
+        logger.debug("published to mqtt: %", JSON.stringify(data));
+        mqttClient.publish(MQTT_STATE_TOPIC, JSON.stringify(data), {
+          retain: retain_flag,
+        });
+      });
+      break;
+    case "GET":
+      wmpclient.get(cmd.feature);
+      break;
+    case "SET":
+      if (offmode_enabled && cmd.feature.toLowerCase() === "mode") {
+        if (cmd.value.toString().toLowerCase() === "off") {
+          wmpclient.set("ONOFF", "OFF");
+        } else {
+          wmpclient.set("ONOFF", "ON");
+          wmpclient.set("MODE", cmd.value.toString());
+        }
+      } else {
+        wmpclient.set(cmd.feature, cmd.value);
+      }
+      break;
+  }
+};
+
 var runMqtt2WMP = function (mqttClient, wmpclientMap) {
   mqttClient.subscribe(MQTT_COMMAND_TOPIC + "/#");
 
@@ -140,45 +178,15 @@ var runMqtt2WMP = function (mqttClient, wmpclientMap) {
     let wmpclient = wmpclientMap[cmd.mac];
 
     if (!wmpclient) {
+      if (!commandQueue[cmd.mac]) commandQueue[cmd.mac] = [];
+      commandQueue[cmd.mac].push(cmd);
       logger.warn(
-        "Cannot find WMP server with MAC " + cmd.mac + "! Ignoring...",
+        "Device " + cmd.mac + " offline, queuing command: " + cmd.command,
       );
       return;
     }
 
-    switch (cmd.command) {
-      case "ID":
-        wmpclient.id().then(function (data) {
-          logger.debug("published to mqtt: %", JSON.stringify(data));
-          mqttClient.publish(MQTT_STATE_TOPIC, JSON.stringify(data), {
-            retain: retain_flag,
-          });
-        });
-        break;
-      case "INFO":
-        wmpclient.info().then(function (data) {
-          logger.debug("published to mqtt: %", JSON.stringify(data));
-          mqttClient.publish(MQTT_STATE_TOPIC, JSON.stringify(data), {
-            retain: retain_flag,
-          });
-        });
-        break;
-      case "GET":
-        wmpclient.get(cmd.feature);
-        break;
-      case "SET":
-        if (offmode_enabled && cmd.feature.toLowerCase() === "mode") {
-          if (cmd.value.toString().toLowerCase() === "off") {
-            wmpclient.set("ONOFF", "OFF");
-          } else {
-            wmpclient.set("ONOFF", "ON");
-            wmpclient.set("MODE", cmd.value.toString());
-          }
-        } else {
-          wmpclient.set(cmd.feature, cmd.value);
-        }
-        break;
-    }
+    executeCommand(wmpclient, cmd);
   });
 
   let keepalive = setInterval(function () {
@@ -231,6 +239,15 @@ let wmpConnect = function (ip) {
     macToClient[wmpclient.mac] = wmpclient;
 
     runWMP2Mqtt(mqttClient, wmpclient);
+
+    const queued = commandQueue[wmpclient.mac] || [];
+    if (queued.length > 0) {
+      logger.info(
+        "Flushing " + queued.length + " queued command(s) for " + wmpclient.mac,
+      );
+      delete commandQueue[wmpclient.mac];
+      queued.forEach(function (cmd) { executeCommand(wmpclient, cmd); });
+    }
   }).catch(function (err) {
     logger.warn("WMP connection failed: " + err + ". Retrying in 5 seconds...");
     setTimeout(() => wmpConnect(ip), 5000);
