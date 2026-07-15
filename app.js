@@ -67,7 +67,9 @@ let runWMP2Mqtt = function (mqttClient, wmpclient) {
   }
 
   wmpclient.on("update", function (data) {
-    logger.debug("Sending to MQTT (" + wmpclient.mac + "): " + JSON.stringify(data));
+    logger.debug(
+      "Sending to MQTT (" + wmpclient.mac + "): " + JSON.stringify(data),
+    );
     const feature = data.feature.toLowerCase();
     const value = data.value.toString().toLowerCase();
     const statBase = MQTT_STATE_TOPIC + "/" + wmpclient.mac + "/settings/";
@@ -200,7 +202,9 @@ var runMqtt2WMP = function (mqttClient, wmpclientMap) {
         let timeoutHandle = setTimeout(function () {
           timedOut = true;
           logger.warn(
-            "keepalive: no response from MAC " + mac + " within 5s, killing connection",
+            "keepalive: no response from MAC " +
+              mac +
+              " within 5s, killing connection",
           );
           wmpclient.destroy();
         }, 15000);
@@ -211,6 +215,7 @@ var runMqtt2WMP = function (mqttClient, wmpclientMap) {
           wmpclient.get("ONOFF");
           wmpclient.get("MODE");
           wmpclient.get("AMBTEMP");
+          wmpclient.get("SETPTEMP");
         });
       });
     } catch (err) {
@@ -225,33 +230,45 @@ let deviceState = {}; // { [mac]: { onoff: null, mode: null } } — used by offm
 
 let wmpConnect = function (ip) {
   //todo: prevent duplicate registrations
-  wmp.connect(ip).then(function (wmpclient) {
-    logger.info("Connected to WMP at IP " + ip + " with MAC " + wmpclient.mac);
-
-    wmpclient.on("close", function () {
-      logger.warn("WMP Connection closed! Reconnecting...");
-      if (wmpclient.mac) {
-        delete macToClient[wmpclient.mac];
-      }
-      wmpConnect(ip);
-    });
-
-    macToClient[wmpclient.mac] = wmpclient;
-
-    runWMP2Mqtt(mqttClient, wmpclient);
-
-    const queued = commandQueue[wmpclient.mac] || [];
-    if (queued.length > 0) {
+  wmp
+    .connect(ip)
+    .then(function (wmpclient) {
       logger.info(
-        "Flushing " + queued.length + " queued command(s) for " + wmpclient.mac,
+        "Connected to WMP at IP " + ip + " with MAC " + wmpclient.mac,
       );
-      delete commandQueue[wmpclient.mac];
-      queued.forEach(function (cmd) { executeCommand(wmpclient, cmd); });
-    }
-  }).catch(function (err) {
-    logger.warn("WMP connection failed: " + err + ". Retrying in 5 seconds...");
-    setTimeout(() => wmpConnect(ip), 5000);
-  });
+
+      wmpclient.on("close", function () {
+        logger.warn("WMP Connection closed! Reconnecting...");
+        if (wmpclient.mac) {
+          delete macToClient[wmpclient.mac];
+        }
+        wmpConnect(ip);
+      });
+
+      macToClient[wmpclient.mac] = wmpclient;
+
+      runWMP2Mqtt(mqttClient, wmpclient);
+
+      const queued = commandQueue[wmpclient.mac] || [];
+      if (queued.length > 0) {
+        logger.info(
+          "Flushing " +
+            queued.length +
+            " queued command(s) for " +
+            wmpclient.mac,
+        );
+        delete commandQueue[wmpclient.mac];
+        queued.forEach(function (cmd) {
+          executeCommand(wmpclient, cmd);
+        });
+      }
+    })
+    .catch(function (err) {
+      logger.warn(
+        "WMP connection failed: " + err + ". Retrying in 5 seconds...",
+      );
+      setTimeout(() => wmpConnect(ip), 5000);
+    });
 };
 
 supplied_intesis_ips.map(function (ip) {
